@@ -39,5 +39,5 @@ RUN mkdir -p /data/attachments
 VOLUME ["/data/attachments"]
 
 EXPOSE 8080
-# Sync the database schema then start the server.
-CMD ["sh", "-c", "npx prisma db push --skip-generate --accept-data-loss && node dist/index.js"]
+# Run the guarded pre-migrate cleanup, sync the schema, then start the server.
+CMD ["sh", "-c", "npx prisma db execute --file prisma/pre-migrate.sql --schema prisma/schema.prisma && npx prisma db push --skip-generate --accept-data-loss && node dist/index.js"]

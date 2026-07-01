@@ -38,7 +38,7 @@ services:
       ATTACHMENTS_DIR: /data/attachments
       PORT: 8080
       NODE_ENV: development
-    command: sh -c "apk add --no-cache openssl && npm install && npx prisma db push && npm run dev"
+    command: sh -c "apk add --no-cache openssl && npm install && npx prisma db execute --file prisma/pre-migrate.sql --schema prisma/schema.prisma && npx prisma db push && npm run dev"
     ports:
       - "8080:8080"
     volumes:
