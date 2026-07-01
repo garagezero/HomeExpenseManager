@@ -16,6 +16,7 @@ model User {
   createdAt    DateTime  @default(now())
 
   entries      PaymentEntry[]
+  transactions Transaction[]
 }
 
 model House {
@@ -39,8 +40,30 @@ model PaymentType {
   createdAt     DateTime  @default(now())
 
   entries       PaymentEntry[]
+  transactions  Transaction[]
 
   @@index([houseId])
+}
+
+// Groups several PaymentEntry periods that were paid together in one action,
+// e.g. one check covering Jan-Mar. Created by the "add to multiple periods"
+// flow; a single quick tick does not create one (transactionId stays null).
+model Transaction {
+  id            Int          @id @default(autoincrement())
+  paymentType   PaymentType  @relation(fields: [paymentTypeId], references: [id], onDelete: Cascade)
+  paymentTypeId Int
+  amount        Decimal?     @db.Decimal(12, 2)
+  status        EntryStatus  @default(PAID)
+  note          String?
+  paidOn        DateTime?
+  createdAt     DateTime     @default(now())
+  createdBy     User?        @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdById   Int?
+
+  entries       PaymentEntry[]
+  attachments   Attachment[]
+
+  @@index([paymentTypeId])
 }
 
 // A single period of a payment type that has been marked paid / partial.
@@ -48,36 +71,46 @@ model PaymentType {
 // frequency-specific identifier: "2026-03" (monthly), "2026" (yearly),
 // "2026-W12" (weekly), "2026-03-15" (daily).
 model PaymentEntry {
-  id            Int         @id @default(autoincrement())
-  paymentType   PaymentType @relation(fields: [paymentTypeId], references: [id], onDelete: Cascade)
+  id            Int          @id @default(autoincrement())
+  paymentType   PaymentType  @relation(fields: [paymentTypeId], references: [id], onDelete: Cascade)
   paymentTypeId Int
   periodKey     String
-  periodDate    DateTime    // start of the period, used for sorting & stats
-  status        EntryStatus @default(PAID)
-  amount        Decimal?    @db.Decimal(12, 2)
+  periodDate    DateTime     // start of the period, used for sorting & stats
+  status        EntryStatus  @default(PAID)
+  amount        Decimal?     @db.Decimal(12, 2)
   note          String?
   paidOn        DateTime?
-  createdAt     DateTime    @default(now())
-  createdBy     User?       @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt     DateTime     @default(now())
+  createdBy     User?        @relation(fields: [createdById], references: [id], onDelete: SetNull)
   createdById   Int?
+
+  // Set when this period was created as part of a multi-period payment.
+  transaction   Transaction? @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  transactionId Int?
 
   attachments   Attachment[]
 
   @@unique([paymentTypeId, periodKey])
   @@index([paymentTypeId])
+  @@index([transactionId])
 }
 
+// Belongs to exactly one of entry (single-period attachment) or transaction
+// (attachment shared across a multi-period payment) — never both.
 model Attachment {
-  id         Int          @id @default(autoincrement())
-  entry      PaymentEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
-  entryId    Int
-  filename   String
-  storedName String
-  mime       String
-  size       Int
-  createdAt  DateTime     @default(now())
+  id            Int          @id @default(autoincrement())
+  entry         PaymentEntry? @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  entryId       Int?
+  transaction   Transaction?  @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  transactionId Int?
+  filename      String
+  storedName    String
+  mime          String
+  size          Int
+  createdAt     DateTime     @default(now())
 
   @@index([entryId])
+  @@index([transactionId])
 }
 
 model Setting {

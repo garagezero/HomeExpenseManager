@@ -18,14 +18,16 @@ const EXPORT_VERSION = 1;
 
 // ---- Export: stream a .zip containing data.json + every attachment file ----
 backupRouter.get("/export", async (_req, res) => {
-  const [users, houses, paymentTypes, entries, attachments, settings] = await Promise.all([
-    prisma.user.findMany(),
-    prisma.house.findMany(),
-    prisma.paymentType.findMany(),
-    prisma.paymentEntry.findMany(),
-    prisma.attachment.findMany(),
-    prisma.setting.findMany(),
-  ]);
+  const [users, houses, paymentTypes, transactions, entries, attachments, settings] =
+    await Promise.all([
+      prisma.user.findMany(),
+      prisma.house.findMany(),
+      prisma.paymentType.findMany(),
+      prisma.transaction.findMany(),
+      prisma.paymentEntry.findMany(),
+      prisma.attachment.findMany(),
+      prisma.setting.findMany(),
+    ]);
 
   const data = {
     version: EXPORT_VERSION,
@@ -35,6 +37,12 @@ backupRouter.get("/export", async (_req, res) => {
     paymentTypes: paymentTypes.map((t) => ({
       ...t,
       defaultAmount: t.defaultAmount != null ? Number(t.defaultAmount) : null,
+      createdAt: t.createdAt.toISOString(),
+    })),
+    transactions: transactions.map((t) => ({
+      ...t,
+      amount: t.amount != null ? Number(t.amount) : null,
+      paidOn: t.paidOn ? t.paidOn.toISOString() : null,
       createdAt: t.createdAt.toISOString(),
     })),
     entries: entries.map((e) => ({
@@ -103,6 +111,7 @@ backupRouter.post("/import", uploadZip.single("backup"), async (req, res) => {
       // Wipe (order matters for FKs, though cascades cover most).
       await tx.attachment.deleteMany();
       await tx.paymentEntry.deleteMany();
+      await tx.transaction.deleteMany();
       await tx.paymentType.deleteMany();
       await tx.house.deleteMany();
       await tx.user.deleteMany();
@@ -142,6 +151,20 @@ backupRouter.post("/import", uploadZip.single("backup"), async (req, res) => {
           },
         });
 
+      for (const t of data.transactions ?? [])
+        await tx.transaction.create({
+          data: {
+            id: t.id,
+            paymentTypeId: t.paymentTypeId,
+            amount: t.amount,
+            status: t.status,
+            note: t.note,
+            paidOn: t.paidOn ? new Date(t.paidOn) : null,
+            createdById: t.createdById,
+            createdAt: new Date(t.createdAt),
+          },
+        });
+
       for (const e of data.entries ?? [])
         await tx.paymentEntry.create({
           data: {
@@ -153,6 +176,7 @@ backupRouter.post("/import", uploadZip.single("backup"), async (req, res) => {
             amount: e.amount,
             note: e.note,
             paidOn: e.paidOn ? new Date(e.paidOn) : null,
+            transactionId: e.transactionId ?? null,
             createdById: e.createdById,
             createdAt: new Date(e.createdAt),
           },
@@ -162,7 +186,8 @@ backupRouter.post("/import", uploadZip.single("backup"), async (req, res) => {
         await tx.attachment.create({
           data: {
             id: a.id,
-            entryId: a.entryId,
+            entryId: a.entryId ?? null,
+            transactionId: a.transactionId ?? null,
             filename: a.filename,
             storedName: a.storedName,
             mime: a.mime,
@@ -175,7 +200,14 @@ backupRouter.post("/import", uploadZip.single("backup"), async (req, res) => {
         await tx.setting.create({ data: { key: s.key, value: s.value } });
 
       // Reset autoincrement sequences so future inserts don't collide.
-      for (const table of ["User", "House", "PaymentType", "PaymentEntry", "Attachment"]) {
+      for (const table of [
+        "User",
+        "House",
+        "PaymentType",
+        "Transaction",
+        "PaymentEntry",
+        "Attachment",
+      ]) {
         await tx.$executeRawUnsafe(
           `SELECT setval(pg_get_serial_sequence('"${table}"', 'id'), COALESCE((SELECT MAX(id) FROM "${table}"), 1))`
         );

@@ -30,6 +30,7 @@ export function serializeEntry(e: any) {
     note: e.note,
     paidOn: e.paidOn,
     createdAt: e.createdAt,
+    transactionId: e.transactionId ?? null,
     attachments:
       e.attachments?.map((a: any) => ({
         id: a.id,

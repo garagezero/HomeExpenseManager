@@ -8,16 +8,16 @@ import {
   Group,
   Stack,
   Text,
-  FileInput,
   Divider,
   Anchor,
   ActionIcon,
 } from "@mantine/core";
 import { DateInput } from "@mantine/dates";
-import { IconPaperclip, IconFile, IconTrash } from "@tabler/icons-react";
+import { IconFile, IconTrash } from "@tabler/icons-react";
 import { notifications } from "@mantine/notifications";
 import { api, EntryStatus, PaymentEntry, PaymentType } from "../api";
 import { PeriodCell } from "../periods";
+import AttachmentPicker from "./AttachmentPicker";
 
 interface Props {
   opened: boolean;
@@ -184,14 +184,10 @@ export default function EntryModal({
           </Stack>
         )}
 
-        <FileInput
+        <AttachmentPicker
           label={entry ? "Add more files" : "Attach receipt / check (optional)"}
-          placeholder="Choose files"
-          leftSection={<IconPaperclip size={16} />}
-          multiple
           value={files}
           onChange={setFiles}
-          clearable
         />
 
         <Group justify="space-between" mt="sm">

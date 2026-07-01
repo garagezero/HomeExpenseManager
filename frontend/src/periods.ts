@@ -77,6 +77,25 @@ export function generatePeriods(
   return cells;
 }
 
+// Human-readable label for a period given its start date and the type's
+// frequency. periodKey is used as a fallback for weekly labels ("2026-W12").
+export function formatPeriodLabel(periodDateISO: string, frequency: Frequency, periodKey?: string) {
+  const d = new Date(periodDateISO);
+  switch (frequency) {
+    case "MONTHLY":
+      return `${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+    case "YEARLY":
+      return `${d.getUTCFullYear()}`;
+    case "DAILY":
+      return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()].slice(0, 3)} ${d.getUTCFullYear()}`;
+    case "WEEKLY":
+    default:
+      return periodKey
+        ? `Week of ${d.getUTCDate()} ${MONTHS[d.getUTCMonth()].slice(0, 3)} ${d.getUTCFullYear()}`
+        : `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()].slice(0, 3)} ${d.getUTCFullYear()}`;
+  }
+}
+
 export const FREQUENCY_LABELS: Record<Frequency, string> = {
   DAILY: "Daily",
   WEEKLY: "Weekly",

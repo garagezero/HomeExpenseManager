@@ -7,21 +7,13 @@ import { requireAuth } from "../auth";
 import { upload } from "../upload";
 import { config } from "../config";
 import { serializeEntry } from "./paymentTypes";
+import { cleanupTransactionIfEmpty, unlinkIfOrphan } from "../attachmentCleanup";
 
 export const entriesRouter = Router();
 
 entriesRouter.use(requireAuth);
 
 const includeAtt = { attachments: true };
-
-// A stored file may be referenced by several Attachment rows (one check shared
-// across multiple periods). Only remove the file from disk once no rows use it.
-async function unlinkIfOrphan(storedName: string) {
-  const count = await prisma.attachment.count({ where: { storedName } });
-  if (count === 0) {
-    fs.promises.unlink(path.join(config.attachmentsDir, storedName)).catch(() => {});
-  }
-}
 
 const upsertSchema = z.object({
   paymentTypeId: z.coerce.number().int(),
@@ -110,7 +102,8 @@ entriesRouter.post("/", upload.array("attachments"), async (req, res) => {
 });
 
 // Apply one payment (amount/status/note + shared attachments) to MANY periods
-// at once. The uploaded file is stored once and referenced by every period.
+// at once. The attachment is stored once on the created Transaction, not
+// duplicated per period.
 const bulkSchema = z.object({
   paymentTypeId: z.coerce.number().int(),
   periods: z
@@ -122,6 +115,9 @@ const bulkSchema = z.object({
   paidOn: z.string().nullable().optional(),
 });
 
+// Bulk-add creates ONE Transaction (holding the shared amount/note/attachments)
+// and links every selected period's PaymentEntry to it, so opening the
+// transaction later shows exactly which periods it covers.
 entriesRouter.post("/bulk", upload.array("attachments"), async (req, res) => {
   const raw = { ...req.body };
   if (typeof raw.periods === "string") {
@@ -147,13 +143,24 @@ entriesRouter.post("/bulk", upload.array("attachments"), async (req, res) => {
       : null;
   const paidOn = d.paidOn ? new Date(d.paidOn) : new Date();
 
-  // Every period gets Attachment rows pointing at the same stored file(s).
-  const attachmentData = files.map((f) => ({
-    filename: f.originalname,
-    storedName: f.filename,
-    mime: f.mimetype,
-    size: f.size,
-  }));
+  const transaction = await prisma.transaction.create({
+    data: {
+      paymentTypeId: d.paymentTypeId,
+      amount,
+      status: d.status,
+      note: d.note || null,
+      paidOn,
+      createdById: req.user!.id,
+      attachments: {
+        create: files.map((f) => ({
+          filename: f.originalname,
+          storedName: f.filename,
+          mime: f.mimetype,
+          size: f.size,
+        })),
+      },
+    },
+  });
 
   for (const p of d.periods) {
     const existing = await prisma.paymentEntry.findUnique({
@@ -162,6 +169,7 @@ entriesRouter.post("/bulk", upload.array("attachments"), async (req, res) => {
       },
     });
     if (existing) {
+      const previousTransactionId = existing.transactionId;
       await prisma.paymentEntry.update({
         where: { id: existing.id },
         data: {
@@ -169,9 +177,13 @@ entriesRouter.post("/bulk", upload.array("attachments"), async (req, res) => {
           amount,
           note: d.note ?? undefined,
           paidOn,
-          attachments: { create: attachmentData },
+          transactionId: transaction.id,
         },
       });
+      // This period moved to the new transaction — the old one may now be empty.
+      if (previousTransactionId && previousTransactionId !== transaction.id) {
+        await cleanupTransactionIfEmpty(previousTransactionId);
+      }
     } else {
       await prisma.paymentEntry.create({
         data: {
@@ -183,12 +195,12 @@ entriesRouter.post("/bulk", upload.array("attachments"), async (req, res) => {
           note: d.note ?? null,
           paidOn,
           createdById: req.user!.id,
-          attachments: { create: attachmentData },
+          transactionId: transaction.id,
         },
       });
     }
   }
-  res.status(201).json({ ok: true, count: d.periods.length });
+  res.status(201).json({ ok: true, count: d.periods.length, transactionId: transaction.id });
 });
 
 const patchSchema = z.object({
@@ -232,9 +244,12 @@ entriesRouter.delete("/:id", async (req, res) => {
   });
   if (!entry) return res.status(404).json({ error: "Entry not found" });
   const storedNames = entry.attachments.map((a) => a.storedName);
+  const transactionId = entry.transactionId;
   await prisma.paymentEntry.delete({ where: { id } });
   // After the cascade delete, drop files that no other entry still references.
   for (const s of new Set(storedNames)) await unlinkIfOrphan(s);
+  // If this was the last period covered by its transaction, remove that too.
+  if (transactionId) await cleanupTransactionIfEmpty(transactionId);
   res.json({ ok: true });
 });
 

@@ -9,14 +9,14 @@ import {
   Text,
   PasswordInput,
   Divider,
-  FileInput,
   Alert,
 } from "@mantine/core";
-import { IconDownload, IconUpload, IconAlertTriangle } from "@tabler/icons-react";
+import { IconDownload, IconAlertTriangle } from "@tabler/icons-react";
 import { notifications } from "@mantine/notifications";
 import { modals } from "@mantine/modals";
 import { api } from "../api";
 import { useApp } from "../context";
+import AttachmentPicker from "../components/AttachmentPicker";
 
 export default function SettingsPage() {
   const { refreshSettings } = useApp();
@@ -178,14 +178,13 @@ export default function SettingsPage() {
           <Alert color="yellow" icon={<IconAlertTriangle size={16} />} variant="light">
             Importing replaces everything currently in the app.
           </Alert>
-          <FileInput
+          <AttachmentPicker
             label="Backup file (.zip)"
-            placeholder="Choose a .zip backup"
-            leftSection={<IconUpload size={16} />}
-            accept=".zip"
-            value={importFile}
-            onChange={setImportFile}
-            clearable
+            dropText="Drag a .zip backup here or click to choose"
+            multiple={false}
+            accept={["application/zip", "application/x-zip-compressed"]}
+            value={importFile ? [importFile] : []}
+            onChange={(files) => setImportFile(files[0] ?? null)}
           />
           <Group justify="flex-end">
             <Button color="red" onClick={runImport} loading={importing} disabled={!importFile}>

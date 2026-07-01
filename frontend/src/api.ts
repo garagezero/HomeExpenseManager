@@ -46,6 +46,27 @@ export interface PaymentEntry {
   note?: string | null;
   paidOn?: string | null;
   createdAt: string;
+  transactionId?: number | null;
+  attachments: Attachment[];
+}
+
+export interface TransactionEntry {
+  id: number;
+  periodKey: string;
+  periodDate: string;
+  status: EntryStatus;
+  amount: number | null;
+}
+
+export interface Transaction {
+  id: number;
+  paymentTypeId: number;
+  amount: number | null;
+  status: EntryStatus;
+  note?: string | null;
+  paidOn?: string | null;
+  createdAt: string;
+  entries: TransactionEntry[];
   attachments: Attachment[];
 }
 
@@ -144,7 +165,10 @@ export const api = {
   upsertEntry: (form: FormData) =>
     request<{ entry: PaymentEntry }>("/api/entries", { method: "POST", body: form }),
   bulkUpsert: (form: FormData) =>
-    request<{ ok: boolean; count: number }>("/api/entries/bulk", { method: "POST", body: form }),
+    request<{ ok: boolean; count: number; transactionId: number }>("/api/entries/bulk", {
+      method: "POST",
+      body: form,
+    }),
   updateEntry: (
     id: number,
     data: { status?: EntryStatus; amount?: number | null; note?: string | null; paidOn?: string | null }
@@ -157,6 +181,10 @@ export const api = {
     }),
   deleteAttachment: (attId: number) => json(`/api/entries/attachments/${attId}`, "DELETE"),
   attachmentUrl: (attId: number) => `/api/entries/attachments/${attId}/download`,
+
+  // transactions (a payment applied to several periods at once)
+  getTransaction: (id: number) => request<{ transaction: Transaction }>(`/api/transactions/${id}`),
+  deleteTransaction: (id: number) => json(`/api/transactions/${id}`, "DELETE"),
 
   // stats
   years: () => request<{ years: number[] }>("/api/stats/years"),

@@ -9,6 +9,7 @@ import { usersRouter } from "./routes/users";
 import { housesRouter } from "./routes/houses";
 import { paymentTypesRouter } from "./routes/paymentTypes";
 import { entriesRouter } from "./routes/entries";
+import { transactionsRouter } from "./routes/transactions";
 import { statsRouter } from "./routes/stats";
 import { settingsRouter } from "./routes/settings";
 import { backupRouter } from "./routes/backup";
@@ -26,6 +27,7 @@ async function main() {
   app.use("/api/houses", housesRouter);
   app.use("/api/payment-types", paymentTypesRouter);
   app.use("/api/entries", entriesRouter);
+  app.use("/api/transactions", transactionsRouter);
   app.use("/api/stats", statsRouter);
   app.use("/api/settings", settingsRouter);
   app.use("/api/backup", backupRouter);

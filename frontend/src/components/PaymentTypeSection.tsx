@@ -23,12 +23,14 @@ import {
   IconPaperclip,
   IconPencil,
   IconStack2,
+  IconLink,
 } from "@tabler/icons-react";
 import { notifications } from "@mantine/notifications";
 import { modals } from "@mantine/modals";
 import { api, PaymentEntry, PaymentType } from "../api";
 import { MONTHS, useMoney } from "../context";
 import {
+  formatPeriodLabel,
   FREQUENCY_LABELS,
   generatePeriods,
   needsMonthNav,
@@ -37,6 +39,7 @@ import {
 } from "../periods";
 import EntryModal from "./EntryModal";
 import BulkEntryModal from "./BulkEntryModal";
+import TransactionModal from "./TransactionModal";
 
 interface Props {
   type: PaymentType;
@@ -63,6 +66,8 @@ export default function PaymentTypeSection({ type, onEditType, onDeleted, onData
   const [modalEntry, setModalEntry] = useState<PaymentEntry | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
+  const [txnId, setTxnId] = useState<number | null>(null);
+  const [txnOpen, setTxnOpen] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -99,17 +104,7 @@ export default function PaymentTypeSection({ type, onEditType, onDeleted, onData
   }, [visibleCells, entries]);
 
   function periodLabel(c: PeriodCell) {
-    const d = new Date(c.dateISO);
-    switch (type.frequency) {
-      case "MONTHLY":
-        return `${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
-      case "YEARLY":
-        return `${d.getUTCFullYear()}`;
-      case "DAILY":
-        return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()].slice(0, 3)} ${d.getUTCFullYear()}`;
-      default:
-        return `${c.label} · ${d.getUTCFullYear()}`;
-    }
+    return formatPeriodLabel(c.dateISO, type.frequency, c.key);
   }
 
   async function quickPaid(c: PeriodCell) {
@@ -128,6 +123,11 @@ export default function PaymentTypeSection({ type, onEditType, onDeleted, onData
   }
 
   function openDetails(c: PeriodCell, entry: PaymentEntry | null) {
+    if (entry?.transactionId) {
+      setTxnId(entry.transactionId);
+      setTxnOpen(true);
+      return;
+    }
     setModalCell(c);
     setModalEntry(entry);
     setModalOpen(true);
@@ -279,9 +279,16 @@ export default function PaymentTypeSection({ type, onEditType, onDeleted, onData
                           : "paid"
                         : "—"}
                     </Text>
-                    {entry && entry.attachments.length > 0 && (
+                    {entry && (entry.attachments.length > 0 || entry.transactionId) && (
                       <Center>
-                        <IconPaperclip size={12} />
+                        <Group gap={2}>
+                          {entry.attachments.length > 0 && <IconPaperclip size={12} />}
+                          {entry.transactionId && (
+                            <Tooltip label="Part of a multi-period payment" withArrow>
+                              <IconLink size={12} />
+                            </Tooltip>
+                          )}
+                        </Group>
                       </Center>
                     )}
                   </Card>
@@ -321,13 +328,27 @@ export default function PaymentTypeSection({ type, onEditType, onDeleted, onData
       <BulkEntryModal
         opened={bulkOpen}
         onClose={() => setBulkOpen(false)}
-        onSaved={() => {
+        onSaved={(transactionId) => {
           load();
           onDataChanged();
+          setTxnId(transactionId);
+          setTxnOpen(true);
         }}
         type={type}
         initialYear={year}
         initialMonth={month}
+      />
+
+      <TransactionModal
+        opened={txnOpen}
+        onClose={() => setTxnOpen(false)}
+        onChanged={() => {
+          load();
+          onDataChanged();
+        }}
+        transactionId={txnId}
+        typeName={type.name}
+        frequency={type.frequency}
       />
     </Card>
   );

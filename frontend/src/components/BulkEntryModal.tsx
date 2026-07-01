@@ -10,21 +10,21 @@ import {
   Chip,
   Button,
   Textarea,
-  FileInput,
   Divider,
   Anchor,
+  Badge,
 } from "@mantine/core";
 import { DateInput } from "@mantine/dates";
-import { IconPaperclip } from "@tabler/icons-react";
 import { notifications } from "@mantine/notifications";
 import { api, EntryStatus, PaymentType } from "../api";
 import { MONTHS } from "../context";
 import { generatePeriods, needsMonthNav, needsYearNav, PeriodCell } from "../periods";
+import AttachmentPicker from "./AttachmentPicker";
 
 interface Props {
   opened: boolean;
   onClose: () => void;
-  onSaved: () => void;
+  onSaved: (transactionId: number) => void;
   type: PaymentType;
   initialYear: number;
   initialMonth: number;
@@ -97,7 +97,7 @@ export default function BulkEntryModal({
 
       const res = await api.bulkUpsert(fd);
       notifications.show({ color: "green", message: `Added to ${res.count} periods` });
-      onSaved();
+      onSaved(res.transactionId);
       onClose();
     } catch (err: any) {
       notifications.show({ color: "red", message: err.message });
@@ -148,11 +148,26 @@ export default function BulkEntryModal({
           </Group>
           <Chip.Group multiple value={selected} onChange={setSelected}>
             <Group gap="xs">
-              {cells.map((c) => (
-                <Chip key={c.key} value={c.key} size="sm">
-                  {c.label}
-                </Chip>
-              ))}
+              {cells.map((c) => {
+                const order = selected.indexOf(c.key);
+                return (
+                  <div key={c.key} style={{ position: "relative" }}>
+                    <Chip value={c.key} size="sm">
+                      {c.label}
+                    </Chip>
+                    {order !== -1 && (
+                      <Badge
+                        size="xs"
+                        circle
+                        color="blue"
+                        style={{ position: "absolute", top: -6, right: -6, pointerEvents: "none" }}
+                      >
+                        {order + 1}
+                      </Badge>
+                    )}
+                  </div>
+                );
+              })}
             </Group>
           </Chip.Group>
         </div>
@@ -195,15 +210,11 @@ export default function BulkEntryModal({
           minRows={2}
         />
 
-        <FileInput
+        <AttachmentPicker
           label="Attachment (shared across all selected periods)"
-          description="The file is stored once and linked to every selected period."
-          placeholder="Choose files"
-          leftSection={<IconPaperclip size={16} />}
-          multiple
+          description="The file is stored once and linked to the whole transaction."
           value={files}
           onChange={setFiles}
-          clearable
         />
 
         <Group justify="flex-end" mt="sm">

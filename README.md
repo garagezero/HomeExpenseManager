@@ -104,6 +104,26 @@ variables in the YAML. To change currency default, passwords, port, secret, etc:
 (Day-to-day settings like currency and app name are also editable inside the app itself,
 under **Settings**, without touching the YAML.)
 
+### Updating the app (new code, no data loss)
+
+TrueNAS's Docker-backed apps don't show an "update available" badge for custom YAML apps
+the way catalog apps do — there's no chart version to compare against. Instead, this app is
+built so a normal **Edit → Save** (or **Stop** then **Start**) *is* the update, because
+`pull_policy: always` forces a fresh pull of `:latest` every time the app (re)starts:
+
+1. Code changes are pushed → the GitHub Action rebuilds and publishes a new `:latest` image
+   automatically (no action needed on your end).
+2. On TrueNAS: **Apps → home-expense-manager → Edit → Save** (even with no YAML changes).
+   This redeploys the app container with the newest image.
+3. On startup the app runs a schema sync automatically. **Additive changes (new tables/
+   columns) are always safe — houses, users, settings, and payment data are preserved.**
+   Only a change that *removes or restructures* existing data (rare, and always called out
+   explicitly when it happens) would need special handling — in that case, export a backup
+   first from **Settings → Backup & restore**.
+
+You do **not** need to delete and reinstall the app to get updates — that's only ever
+needed to fully reset the database, which also erases your data.
+
 ## Unraid
 
 1. Install the **Compose Manager** plugin (Community Apps) — or use Portainer.
