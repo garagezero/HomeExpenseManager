@@ -183,6 +183,7 @@ export default function SettingsPage() {
             dropText="Drag a .zip backup here or click to choose"
             multiple={false}
             accept={["application/zip", "application/x-zip-compressed"]}
+            allowScan={false}
             value={importFile ? [importFile] : []}
             onChange={(files) => setImportFile(files[0] ?? null)}
           />

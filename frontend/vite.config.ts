@@ -21,4 +21,10 @@ export default defineConfig({
   build: {
     outDir: "dist",
   },
+  // The document-scan feature lazy-loads this on demand; keep it out of the
+  // dependency pre-bundle so it doesn't slow down dev server startup or
+  // trip up esbuild on its embedded WASM.
+  optimizeDeps: {
+    exclude: ["@techstark/opencv-js"],
+  },
 });

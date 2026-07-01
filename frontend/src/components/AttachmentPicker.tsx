@@ -1,7 +1,9 @@
+import { useState } from "react";
 import { Dropzone } from "@mantine/dropzone";
-import { Group, Text, ActionIcon, Stack } from "@mantine/core";
-import { IconUpload, IconX, IconFile } from "@tabler/icons-react";
+import { Group, Text, ActionIcon, Stack, Button } from "@mantine/core";
+import { IconUpload, IconX, IconFile, IconCamera } from "@tabler/icons-react";
 import { notifications } from "@mantine/notifications";
+import ScanCaptureModal from "./ScanCaptureModal";
 
 const MAX_SIZE = 25 * 1024 * 1024; // matches backend maxUploadBytes
 
@@ -13,6 +15,7 @@ interface Props {
   multiple?: boolean;
   accept?: string[];
   dropText?: string;
+  allowScan?: boolean;
 }
 
 // Click-to-browse + drag-and-drop file picker. Replaces Mantine's FileInput,
@@ -25,7 +28,10 @@ export default function AttachmentPicker({
   multiple = true,
   accept,
   dropText = "Drag files here or click to choose",
+  allowScan = true,
 }: Props) {
+  const [scanOpen, setScanOpen] = useState(false);
+
   function addFiles(newFiles: File[]) {
     onChange(multiple ? [...value, ...newFiles] : newFiles.slice(0, 1));
   }
@@ -68,6 +74,19 @@ export default function AttachmentPicker({
         </Group>
       </Dropzone>
 
+      {allowScan && (
+        <Group justify="flex-end">
+          <Button
+            size="xs"
+            variant="subtle"
+            leftSection={<IconCamera size={14} />}
+            onClick={() => setScanOpen(true)}
+          >
+            Scan a document
+          </Button>
+        </Group>
+      )}
+
       {value.length > 0 && (
         <Stack gap={4}>
           {value.map((f, i) => (
@@ -84,6 +103,14 @@ export default function AttachmentPicker({
             </Group>
           ))}
         </Stack>
+      )}
+
+      {allowScan && (
+        <ScanCaptureModal
+          opened={scanOpen}
+          onClose={() => setScanOpen(false)}
+          onCapture={(file) => addFiles([file])}
+        />
       )}
     </Stack>
   );
